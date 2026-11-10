@@ -1,0 +1,36 @@
+{
+  "name": "dsh-tomorrow-schedule",
+  "version": "0.2.0",
+  "description": "DSH 日程:侧边栏一个图标,点进去安排明天的事;到点用和主题一致的弹窗提醒,必须手动确认关闭。",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "schedule",
+    "reminder"
+  ],
+  "license": "MIT"
+}

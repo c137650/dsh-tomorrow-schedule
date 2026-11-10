@@ -1,0 +1,13 @@
+# dsh-tomorrow-schedule —— 随包分发的 profile patch
+#
+# 由 `dsh plugin --profile <name> add dsh-tomorrow-schedule` 自动注册;
+# manifest 的 dsh.bundle.patch 指向本文件,dsh plugin 安装后会把包加入
+# profile 的 dsh.profile.bundles 层。
+#
+# 手动兜底(不使用 dsh plugin 时,把下面几行加进 profile 的 cordis.patch.yml):
+#   - insert:
+#       - id: dsh-tomorrow-schedule
+#         name: dsh-tomorrow-schedule
+- insert:
+    - id: dsh-tomorrow-schedule
+      name: dsh-tomorrow-schedule
