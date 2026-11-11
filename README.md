@@ -9,6 +9,8 @@
 - **侧边栏多一个「日程」图标**,点了中央栏换成日程页面
 - **能安排今天和明天**——页面上有两个页签,点「今天」就切到当天,点「明天」就切到明天;
   **添加和已有列表跟着当前这一天走**(两边同步)。日期由服务端定,客户端说什么都不算数
+- **点错页签能一键挪回去**——每条日程旁边有「挪到今天/挪到明天」,
+  挪过去不会换 id,也不会清掉「已提醒」的记录
 - **过了这一天就清空**——每次读写前先清掉更早的
 - **不论按什么顺序添加,列表里的事件总是按开始时刻排列**——服务端排、客户端再排一次,文件里本身也是排好的
 - 事件:**标题**(必填)、**开始时刻**(必填)、**结束时刻**(可选)、**备注**(可选)、**提前多少分钟提醒**
@@ -67,6 +69,7 @@ dsh plugin --profile desktop add dsh-tomorrow-schedule
 | `/dsh-tomorrow-schedule/list` | GET | 列出日程(顺便清过期),每条带 `status`。另外给 `today` / `tomorrow` / `days` |
 | `/dsh-tomorrow-schedule/add` | POST | 加一条。`date` 只能是今天或明天(服务端验),不给就当明天 |
 | `/dsh-tomorrow-schedule/remove` | POST | 删一条 |
+| `/dsh-tomorrow-schedule/move` | POST | 把一条挪到另一天(`date` 只能是今天或明天) |
 | `/dsh-tomorrow-schedule/pending` | GET | 现在该弹的提醒 |
 | `/dsh-tomorrow-schedule/ack` | POST | 确认已看到(幂等,重复调用不会重复计数) |
 | `/dsh-tomorrow-schedule/notify` | POST | 开原生置顶窗口。客户端发现自己在后台时叫这个 |

@@ -27,6 +27,7 @@ import {
   prunePast,
   addEvent,
   removeEvent,
+  moveEvent,
   sortEvents,
   pendingReminders,
   ackReminder,
@@ -219,6 +220,27 @@ export default {
           }
           const removed = withData((data) => removeEvent(data, body.id))
           sendJson(res, removed ? 200 : 404, { ok: removed })
+        },
+      },
+      {
+        // 把一条挪到另一天。
+        //
+        // 页签是"今天 / 明天",点错了东西就落错天了。
+        // 没有这个接口的话只能删了重加 —— 重加会换 id、清掉"已提醒"的记录。
+        path: PREFIX + '/move',
+        handler: async (req, res) => {
+          const body = await readJsonBody(req)
+          if (body === null || typeof body.id !== 'string') {
+            sendJson(res, 400, { ok: false, code: 'bad-args' })
+            return
+          }
+          const result = withData((data) => moveEvent(data, body.id, body.date, Date.now()))
+          if (!result.ok) {
+            sendJson(res, result.code === 'no-such-event' ? 404 : 400, { ok: false, code: result.code })
+            return
+          }
+          log('moved', result.event.id, result.event.date, result.event.start, result.event.title.slice(0, 30))
+          sendJson(res, 200, { ok: true, event: result.event })
         },
       },
       {

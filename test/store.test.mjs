@@ -9,6 +9,7 @@ import {
   prunePast,
   addEvent,
   removeEvent,
+  moveEvent,
   sortEvents,
   pendingReminders,
   ackReminder,
@@ -157,6 +158,24 @@ console.log('\n=== 不论添加顺序,列表总是按时间排 ===')
     ],
   }
   check('同一时刻保持加入顺序', sortEvents(same.events).map((e) => e.title).join(',') === '先,后')
+}
+
+console.log('\n=== 挪到另一天 ===')
+{
+  const data = loadEvents(file)
+  const a = addEvent(data, { title: '要挪的', start: '10:00', date: '2026-11-04' }, NOW)
+  const id = a.event.id
+  const m = moveEvent(data, id, '2026-11-05', NOW)
+  check('挪成功', m.ok === true, JSON.stringify(m))
+  check('日期变成明天', m.event?.date === '2026-11-05', m.event?.date)
+  check('库里的也是明天', data.events[0].date === '2026-11-05', data.events[0].date)
+
+  check('挪到不存在的日子被挡', moveEvent(data, id, '2026-11-09', NOW).code === 'bad-date')
+  check('挪不存在的条目被挡', moveEvent(data, 'nope', '2026-11-05', NOW).code === 'no-such-event')
+
+  // 挪完仍然按时间排
+  const b = addEvent(data, { title: '早的', start: '08:00', date: '2026-11-05' }, NOW)
+  check('挪完仍然按时间排', data.events.map((e) => e.start).join(',') === '08:00,10:00', data.events.map((e) => e.start).join(','))
 }
 
 console.log('\n=== 排序 ===')

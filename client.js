@@ -60,6 +60,7 @@ window.__ModuleLoader__.load({
       'no-title': '标题不能为空',
       'title-too-long': '标题太长了',
       'bad-date': '只能安排今天或者明天',
+      'no-such-event': '这条已经不在了',
       'bad-start': '开始时间格式不对',
       'bad-end': '结束时间格式不对',
       'end-before-start': '结束时间不能早于开始时间',
@@ -117,7 +118,7 @@ window.__ModuleLoader__.load({
       '.tsched-other{margin-top:14px;padding-top:12px;border-top:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.10));display:flex;flex-direction:column;gap:8px;}',
       '.tsched-other-head{font-size:12px;color:var(--dsw-alias-label-secondary,#555);margin:0;}',
       // 四列网格:时间 / 内容 / 状态 / 删除。每一行都对齐。
-      '.tsched-row{display:grid;grid-template-columns:104px 1fr 62px 28px;gap:12px;align-items:start;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-button-elevated-fill,rgba(127,127,127,.07));border:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.10));}',
+      '.tsched-row{display:grid;grid-template-columns:104px 1fr 62px auto 28px;gap:12px;align-items:start;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-button-elevated-fill,rgba(127,127,127,.07));border:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.10));}',
       '.tsched-row.is-missed{opacity:.62;}',
       '.tsched-time{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;}',
       '.tsched-body{min-width:0;}',
@@ -130,6 +131,10 @@ window.__ModuleLoader__.load({
       '.tsched-badge-missed{background:rgba(217,45,32,.14);color:var(--dsw-alias-state-error-primary,#d92d20);}',
       '.tsched-del{justify-self:end;width:26px;height:26px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#555);cursor:pointer;font-size:16px;line-height:1;padding:0;}',
       '.tsched-del:hover{background:var(--dsw-alias-state-error-primary,#d92d20);color:#fff;}',
+      // 「挪到另一天」:页签点错了的时候,一键挪回去,不用删了重加。
+      '.tsched-move{justify-self:end;height:24px;padding:0 9px;border-radius:7px;font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap;border:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.14));background:transparent;color:var(--dsw-alias-label-secondary,#555);}',
+      '.tsched-move:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06));color:var(--dsw-alias-label-primary,#1a1a1a);}',
+      '.tsched-move:disabled{opacity:.45;cursor:default;}',
 
       // 弹窗
       '.tsched-overlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px;}',
@@ -319,6 +324,29 @@ window.__ModuleLoader__.load({
         postJson('/remove', { id: id }).then(refresh).catch(function () {})
       }
 
+      /**
+       * 把一条挪到另一天。
+       *
+       * 页签是"今天 / 明天",点错了东西就落错天了。
+       * 以前只能删了重加 —— 重加会换 id、清掉"已提醒"的记录,时刻还得重敲。
+       */
+      function moveTo(id, date) {
+        postJson('/move', { id: id, date: date })
+          .then(function (r) {
+            if (r && r.ok) refresh()
+            else {
+              setState(function (p) {
+                return Object.assign({}, p, { error: messageOf(r && r.code) })
+              })
+            }
+          })
+          .catch(function () {
+            setState(function (p) {
+              return Object.assign({}, p, { error: '挪动失败,连不上服务' })
+            })
+          })
+      }
+
       function onKey(e) {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit()
       }
@@ -345,6 +373,9 @@ window.__ModuleLoader__.load({
 
       function rowFor(e) {
         var badge = BADGES[e.status] || BADGES.pending
+        // 挪到另一天:今天是 <今天> 就挪到明天,反之挪到今天
+        var otherDate = e.date === state.today ? state.tomorrow : state.today
+        var otherLabel = e.date === state.today ? '明天' : '今天'
         return h(
           'div',
           { className: 'tsched-row' + (e.status === 'missed' ? ' is-missed' : ''), key: e.id },
@@ -361,6 +392,18 @@ window.__ModuleLoader__.load({
             ),
           ),
           h('span', { className: 'tsched-badge ' + badge.cls }, badge.text),
+          h(
+            'button',
+            {
+              className: 'tsched-move',
+              title: '挪到' + otherLabel,
+              disabled: !otherDate,
+              onClick: function () {
+                moveTo(e.id, otherDate)
+              },
+            },
+            '挪到' + otherLabel,
+          ),
           h(
             'button',
             { className: 'tsched-del', title: '删除', onClick: function () { remove(e.id) } },
