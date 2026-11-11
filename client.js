@@ -59,6 +59,7 @@ window.__ModuleLoader__.load({
     var MESSAGES = {
       'no-title': '标题不能为空',
       'title-too-long': '标题太长了',
+      'bad-date': '只能安排今天或者明天',
       'bad-start': '开始时间格式不对',
       'bad-end': '结束时间格式不对',
       'end-before-start': '结束时间不能早于开始时间',
@@ -90,6 +91,13 @@ window.__ModuleLoader__.load({
       '.tsched-head{padding:18px 22px 8px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}',
       '.tsched-title{font-size:17px;font-weight:600;margin:0;}',
       '.tsched-date{font-size:13px;color:var(--dsw-alias-label-secondary,#555);}',
+      // 页签:今天 / 明天。舰长的要求 —— 点哪个就切到哪一天,
+      // 添加和列表都跟着当前这一天走。
+      '.tsched-tabs{display:inline-flex;gap:3px;padding:3px;border-radius:9px;background:rgba(127,127,127,.10);border:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.10));}',
+      '.tsched-tab{height:26px;padding:0 13px;border:none;border-radius:7px;background:transparent;font-size:12px;font-family:inherit;color:var(--dsw-alias-label-secondary,#555);cursor:pointer;white-space:nowrap;}',
+      '.tsched-tab:hover{color:var(--dsw-alias-label-primary,#1a1a1a);}',
+      '.tsched-tab.is-active{background:var(--dsw-alias-button-elevated-fill,#fff);color:var(--dsw-alias-label-primary,#1a1a1a);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.10);}',
+      '.tsched-tab-date{opacity:.7;font-weight:400;margin-left:5px;}',
       '.tsched-hint{font-size:12px;color:var(--dsw-alias-label-secondary,#555);opacity:.76;margin:0 22px 10px;}',
       '.tsched-form{display:grid;grid-template-columns:minmax(140px,1fr) 104px 104px 100px auto;gap:8px;padding:0 22px 12px;align-items:center;}',
       '@media (max-width:860px){.tsched-form{grid-template-columns:1fr 1fr;}}',
@@ -105,6 +113,9 @@ window.__ModuleLoader__.load({
       '.tsched-err{grid-column:1/-1;font-size:12px;color:var(--dsw-alias-state-error-primary,#d92d20);margin:0;}',
       '.tsched-list{flex:1;min-height:0;overflow-y:auto;padding:0 22px 22px;display:flex;flex-direction:column;gap:8px;}',
       '.tsched-empty{margin:24px 0;font-size:13px;color:var(--dsw-alias-label-secondary,#555);text-align:center;}',
+      // 落在今天/明天之外的(正常不会有)—— 不藏起来,单放一栏
+      '.tsched-other{margin-top:14px;padding-top:12px;border-top:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.10));display:flex;flex-direction:column;gap:8px;}',
+      '.tsched-other-head{font-size:12px;color:var(--dsw-alias-label-secondary,#555);margin:0;}',
       // 四列网格:时间 / 内容 / 状态 / 删除。每一行都对齐。
       '.tsched-row{display:grid;grid-template-columns:104px 1fr 62px 28px;gap:12px;align-items:start;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-button-elevated-fill,rgba(127,127,127,.07));border:1px solid var(--dsw-alias-border-l,rgba(0,0,0,.10));}',
       '.tsched-row.is-missed{opacity:.62;}',
@@ -185,6 +196,19 @@ window.__ModuleLoader__.load({
 
     var LEAD_OPTIONS = [0, 5, 10, 15, 30, 60]
 
+    /**
+     * 排一下顺序。
+     *
+     * 服务端已经排过了,这里再排一次是双保险 ——
+     * 舰长的要求是"不论添加顺序是什么,列表里的事件总是按时间顺序排列",
+     * 那就别让显示顺序依赖任何一环是不是恰好做了。
+     */
+    function byTime(a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1
+      if (a.start !== b.start) return a.start < b.start ? -1 : 1
+      return 0
+    }
+
     function Panel() {
       var s = React.useState({
         loading: true,
@@ -193,6 +217,10 @@ window.__ModuleLoader__.load({
         today: '',
         error: '',
         busy: false,
+        // 当前看的是哪一天:'today' 或 'tomorrow'。
+        // 舰长的要求:点「今天」就切到当天,点「明天」就切到明天,
+        // 添加和已有列表都跟着当前这一天走 —— 两边同步。
+        day: 'tomorrow',
       })
       var state = s[0]
       var setState = s[1]
@@ -208,11 +236,12 @@ window.__ModuleLoader__.load({
               setState(function (prev) {
                 return {
                   loading: false,
-                  events: r.events || [],
+                  events: (r.events || []).slice().sort(byTime),
                   tomorrow: r.tomorrow || '',
                   today: r.today || '',
-                  error: '',
+                  error: prev.error,
                   busy: prev.busy,
+                  day: prev.day,
                 }
               })
             } else {
@@ -232,6 +261,26 @@ window.__ModuleLoader__.load({
         refresh()
       }, [refresh])
 
+      // 每分钟拉一次。
+      //
+      // 两个原因:一是跨过零点之后"今天/明天"会变,页签上的日期得跟着换;
+      // 二是另一个窗口改了日程,这边也该看到。
+      React.useEffect(function () {
+        var id = setInterval(refresh, 60000)
+        return function () {
+          clearInterval(id)
+        }
+      }, [refresh])
+
+      // 当前页签对应的那一天。
+      var selectedDate = state.day === 'today' ? state.today : state.tomorrow
+
+      function switchDay(day) {
+        setState(function (p) {
+          return Object.assign({}, p, { day: day })
+        })
+      }
+
       function submit() {
         if (state.busy) return
         setState(function (p) {
@@ -243,6 +292,8 @@ window.__ModuleLoader__.load({
           end: f.end,
           note: f.note,
           leadMinutes: Number(f.leadMinutes),
+          // 加到当前页签那一天
+          date: selectedDate,
         })
           .then(function (r) {
             if (r && r.ok) {
@@ -278,7 +329,21 @@ window.__ModuleLoader__.load({
         pending: { cls: 'tsched-badge-pending', text: '待提醒' },
       }
 
-      var rows = state.events.map(function (e) {
+      // 列表按当前页签的那一天过滤。
+      //
+      // 落在今天/明天之外的事件(正常不会出现 —— addEvent 只允许这两天,
+      // prunePast 又把更早的删了)单独放一栏,免得有东西被悄悄藏起来。
+      var todayEvents = []
+      var tomorrowEvents = []
+      var otherEvents = []
+      state.events.forEach(function (e) {
+        if (e.date === state.today) todayEvents.push(e)
+        else if (e.date === state.tomorrow) tomorrowEvents.push(e)
+        else otherEvents.push(e)
+      })
+      var shown = state.day === 'today' ? todayEvents : tomorrowEvents
+
+      function rowFor(e) {
         var badge = BADGES[e.status] || BADGES.pending
         return h(
           'div',
@@ -302,7 +367,14 @@ window.__ModuleLoader__.load({
             '×',
           ),
         )
-      })
+      }
+
+      var rows = shown.map(rowFor)
+
+      var TABS = [
+        { key: 'today', label: '今天', date: state.today },
+        { key: 'tomorrow', label: '明天', date: state.tomorrow },
+      ]
 
       return h(
         'div',
@@ -311,9 +383,33 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'tsched-head' },
           h('h1', { className: 'tsched-title' }, '日程'),
-          h('span', { className: 'tsched-date' }, state.tomorrow ? '明天 ' + state.tomorrow : ''),
+          h(
+            'div',
+            { className: 'tsched-tabs' },
+            TABS.map(function (t) {
+              return h(
+                'button',
+                {
+                  className: 'tsched-tab' + (state.day === t.key ? ' is-active' : ''),
+                  key: t.key,
+                  title: t.date,
+                  onClick: function () {
+                    switchDay(t.key)
+                  },
+                },
+                t.label,
+                h('span', { className: 'tsched-tab-date' }, t.date ? t.date.slice(5) : ''),
+              )
+            }),
+          ),
         ),
-        h('p', { className: 'tsched-hint' }, '只能安排明天。今天(' + (state.today || '—') + ')过完,这一页就清空。'),
+        h(
+          'p',
+          { className: 'tsched-hint' },
+          state.day === 'today'
+            ? '今天的事。这一天过完,这一页就清空。'
+            : '明天的事。今天(' + (state.today || '—') + ')过完,今天那页就清空。',
+        ),
         h(
           'div',
           { className: 'tsched-form' },
@@ -328,6 +424,7 @@ window.__ModuleLoader__.load({
           h('input', {
             className: 'tsched-input',
             type: 'time',
+            title: '开始时刻',
             value: f.start,
             onChange: function (e) { setF(Object.assign({}, f, { start: e.target.value })) },
           }),
@@ -353,7 +450,7 @@ window.__ModuleLoader__.load({
           h(
             'button',
             { className: 'tsched-btn tsched-btn-primary', disabled: state.busy, onClick: submit },
-            '添加',
+            state.day === 'today' ? '加到今天' : '加到明天',
           ),
           h('textarea', {
             className: 'tsched-note',
@@ -372,7 +469,19 @@ window.__ModuleLoader__.load({
             ? h('p', { className: 'tsched-empty' }, '读取中…')
             : rows.length
               ? rows
-              : h('p', { className: 'tsched-empty' }, '明天还没有安排。'),
+              : h(
+                  'p',
+                  { className: 'tsched-empty' },
+                  state.day === 'today' ? '今天还没有安排。' : '明天还没有安排。',
+                ),
+          otherEvents.length
+            ? h(
+                'div',
+                { className: 'tsched-other' },
+                h('p', { className: 'tsched-other-head' }, '其他日期'),
+                otherEvents.map(rowFor),
+              )
+            : null,
         ),
       )
     }

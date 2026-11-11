@@ -33,6 +33,7 @@ import {
   statusOf,
   todayISO,
   tomorrowISO,
+  allowedDates,
 } from './lib/store.js'
 import { showReminder, showToast } from './lib/popup.js'
 
@@ -176,6 +177,8 @@ export default {
             return {
               today: todayISO(),
               tomorrow: tomorrowISO(),
+              // 可安排的日子:今天和明天。客户端的切换页就是照这个来的。
+              days: allowedDates(),
               // 每条带上状态:界面要标「已提醒」/「错过」
               events: sortEvents(data.events).map((e) => ({ ...e, status: statusOf(e, now) })),
             }
@@ -197,7 +200,13 @@ export default {
             return
           }
           log('added', result.event.date, result.event.start, result.event.title.slice(0, 30))
-          sendJson(res, 200, { ok: true, event: result.event, tomorrow: result.event.date })
+          // date 是这条日程落在哪一天;tomorrow 保留是为了兼容老客户端。
+          sendJson(res, 200, {
+            ok: true,
+            event: result.event,
+            date: result.event.date,
+            tomorrow: result.event.date,
+          })
         },
       },
       {

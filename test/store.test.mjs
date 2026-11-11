@@ -37,12 +37,12 @@ check('今天是 2026-11-04', todayISO(NOW) === '2026-11-04', todayISO(NOW))
 check('明天是 2026-11-05', tomorrowISO(NOW) === '2026-11-05', tomorrowISO(NOW))
 check('跨月也对', tomorrowISO(new Date(2026, 10, 30, 10, 0).getTime()) === '2026-12-01', tomorrowISO(new Date(2026, 10, 30, 10, 0).getTime()))
 
-console.log('\n=== 只能安排明天 ===')
+console.log('\n=== 只能安排今天和明天(默认还是明天) ===')
 {
   const data = loadEvents(file)
   const ok = addEvent(data, { title: '选课', start: '20:00' }, NOW)
   check('加一条成功', ok.ok === true, JSON.stringify(ok))
-  check('日期被服务端定成明天', ok.event?.date === '2026-11-05', ok.event?.date)
+  check('不传日期就是明天', ok.event?.date === '2026-11-05', ok.event?.date)
   check('默认提前 10 分钟', ok.event?.leadMinutes === 10, String(ok.event?.leadMinutes))
   check('end/note 可以留空', ok.event?.end === '' && ok.event?.note === '', JSON.stringify(ok.event))
 }
@@ -95,6 +95,68 @@ console.log('\n=== 过了这一天就清空 ===')
   })()
   check('到了第二天,今天那条被清掉', later.events.length === 1, JSON.stringify(later.events.map((e) => e.title)))
   check('第二天时"明天的"变成了今天,仍保留', later.events[0].title === '明天的')
+}
+
+console.log('\n=== 能安排今天和明天 ===')
+{
+  const data = loadEvents(file)
+  const t = addEvent(data, { title: '今天的事', start: '20:00', date: '2026-11-04' }, NOW)
+  check('加到今天成功', t.ok === true, JSON.stringify(t))
+  check('日期就是今天', t.event?.date === '2026-11-04', t.event?.date)
+
+  const m = addEvent(data, { title: '明天的事', start: '20:00', date: '2026-11-05' }, NOW)
+  check('加到明天成功', m.ok === true, JSON.stringify(m))
+  check('日期就是明天', m.event?.date === '2026-11-05', m.event?.date)
+
+  const legacy = addEvent(data, { title: '不传日期', start: '20:00' }, NOW)
+  check('不传日期默认明天(兼容老客户端)', legacy.event?.date === '2026-11-05', legacy.event?.date)
+
+  // 别的日期一律拒绝
+  const bad = [
+    ['2026-11-03', '前天'],
+    ['2026-11-06', '后天'],
+    ['2027-01-01', '明年'],
+    ['乱写', '不是日期'],
+  ]
+  let allBlocked = true
+  for (const [d, why] of bad) {
+    const r = addEvent(data, { title: 'x', start: '10:00', date: d }, NOW)
+    if (r.ok || r.code !== 'bad-date') {
+      allBlocked = false
+      console.log('    ' + why + ' 没被挡住:' + JSON.stringify(r))
+    }
+  }
+  check('今天/明天以外都挡住', allBlocked)
+}
+
+console.log('\n=== 不论添加顺序,列表总是按时间排 ===')
+{
+  const data = loadEvents(file)
+  // 乱着加
+  addEvent(data, { title: '晚', start: '20:00', date: '2026-11-05' }, NOW)
+  addEvent(data, { title: '早', start: '08:00', date: '2026-11-05' }, NOW)
+  addEvent(data, { title: '中', start: '12:00', date: '2026-11-05' }, NOW)
+  addEvent(data, { title: '今天早上', start: '07:00', date: '2026-11-04' }, NOW)
+  addEvent(data, { title: '今天晚上', start: '21:00', date: '2026-11-04' }, NOW)
+
+  const order = data.events.map((e) => e.title).join(',')
+  check(
+    '文件里就是排好的(今天的在前,各自按时间)',
+    order === '今天早上,今天晚上,早,中,晚',
+    order,
+  )
+
+  const sorted = sortEvents(data.events).map((e) => e.title).join(',')
+  check('sortEvents 也是同一个顺序', sorted === '今天早上,今天晚上,早,中,晚', sorted)
+
+  // 同一时刻的按加入顺序排(稳定)
+  const same = {
+    events: [
+      { id: 'a', date: '2026-11-05', start: '10:00', title: '先' },
+      { id: 'b', date: '2026-11-05', start: '10:00', title: '后' },
+    ],
+  }
+  check('同一时刻保持加入顺序', sortEvents(same.events).map((e) => e.title).join(',') === '先,后')
 }
 
 console.log('\n=== 排序 ===')

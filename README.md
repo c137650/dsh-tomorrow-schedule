@@ -1,14 +1,16 @@
 # dsh-tomorrow-schedule
 
-给 DeepSeek Harness 加一个**日程**:侧边栏一个图标,点进去安排明天的事;到点用和主题一致的弹窗提醒,必须手动确认关闭。
+给 DeepSeek Harness 加一个**日程**:侧边栏一个图标,点进去安排今天和明天的事;到点用和主题一致的弹窗提醒,必须手动确认关闭。
 
 原来的版本把源码放在 `E:\deepseek_harness_workspace\dsh-tomorrow-schedule`,那个工作区被清空后代码没了(数据还在)。这是按需求重写的版本,数据结构与旧版一致,旧日程已自动搬过来。
 
 ## 它做什么
 
 - **侧边栏多一个「日程」图标**,点了中央栏换成日程页面
-- **只能安排明天**——日期由服务端决定,客户端说什么都不算数
+- **能安排今天和明天**——页面上有两个页签,点「今天」就切到当天,点「明天」就切到明天;
+  **添加和已有列表跟着当前这一天走**(两边同步)。日期由服务端定,客户端说什么都不算数
 - **过了这一天就清空**——每次读写前先清掉更早的
+- **不论按什么顺序添加,列表里的事件总是按开始时刻排列**——服务端排、客户端再排一次,文件里本身也是排好的
 - 事件:**标题**(必填)、**开始时刻**(必填)、**结束时刻**(可选)、**备注**(可选)、**提前多少分钟提醒**
 - 列表里每条带状态:**待提醒 / 已提醒 / 错过**
 - **开始超过 30 分钟就不再提醒**,直接标「错过」——电脑一直没开机时,开机后不会倒出一堆过期提醒
@@ -62,8 +64,8 @@ dsh plugin --profile desktop add dsh-tomorrow-schedule
 
 | 路径 | 方法 | 作用 |
 |---|---|---|
-| `/dsh-tomorrow-schedule/list` | GET | 列出日程(顺便清过期),每条带 `status` |
-| `/dsh-tomorrow-schedule/add` | POST | 加一条。日期由服务端定成明天 |
+| `/dsh-tomorrow-schedule/list` | GET | 列出日程(顺便清过期),每条带 `status`。另外给 `today` / `tomorrow` / `days` |
+| `/dsh-tomorrow-schedule/add` | POST | 加一条。`date` 只能是今天或明天(服务端验),不给就当明天 |
 | `/dsh-tomorrow-schedule/remove` | POST | 删一条 |
 | `/dsh-tomorrow-schedule/pending` | GET | 现在该弹的提醒 |
 | `/dsh-tomorrow-schedule/ack` | POST | 确认已看到(幂等,重复调用不会重复计数) |
@@ -147,7 +149,7 @@ DSH 的 GUI 里看不到插件日志,这个文件就是唯一的线索。
 ## 测试
 
 ```bash
-node test/store.test.mjs      # 规则:日期 / 只能明天 / 参数校验 / 跨天清理 / 排序 / 读写
+node test/store.test.mjs      # 规则:今天/明天 / 参数校验 / 跨天清理 / 排序 / 读写
 node test/status.test.mjs     # 状态:待提醒 / 已提醒 / 错过、30 分钟界线、ack 幂等
 node test/popup.test.mjs      # 脚本内容:置顶 / 居中 / 只能手动关 / 通知与窗口分开 / 能被 PowerShell 解析
 ```
