@@ -225,7 +225,10 @@ window.__ModuleLoader__.load({
         // 当前看的是哪一天:'today' 或 'tomorrow'。
         // 舰长的要求:点「今天」就切到当天,点「明天」就切到明天,
         // 添加和已有列表都跟着当前这一天走 —— 两边同步。
-        day: 'tomorrow',
+        //
+        // 默认是**今天**:打开日程是想看"我要做什么",不是想看明天的计划。
+        // 之前默认是明天,舰长说"从习惯上来讲,应该显示今天页面更好"。
+        day: 'today',
       })
       var state = s[0]
       var setState = s[1]
@@ -288,6 +291,16 @@ window.__ModuleLoader__.load({
 
       function submit() {
         if (state.busy) return
+        // 日期还没读到的时候不能加。
+        //
+        // 服务端把"没传日期"当成明天 —— 所以在 /list 回来之前点添加,
+        // 东西会莫名其妙落到明天去。宁可等一下。
+        if (!selectedDate) {
+          setState(function (p) {
+            return Object.assign({}, p, { error: '还没读到日期,稍等一下' })
+          })
+          return
+        }
         setState(function (p) {
           return Object.assign({}, p, { busy: true, error: '' })
         })
@@ -492,7 +505,12 @@ window.__ModuleLoader__.load({
           ),
           h(
             'button',
-            { className: 'tsched-btn tsched-btn-primary', disabled: state.busy, onClick: submit },
+            {
+              className: 'tsched-btn tsched-btn-primary',
+              // 日期还没读到之前不让加 —— 否则会落到明天去(服务端把"没传日期"当明天)
+              disabled: state.busy || !selectedDate,
+              onClick: submit,
+            },
             state.day === 'today' ? '加到今天' : '加到明天',
           ),
           h('textarea', {
